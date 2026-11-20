@@ -37,23 +37,30 @@ local function enemyChars()
     return t
 end
 
-local old
-old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-    local method = getnamecallmethod()
-    if not checkcaller() then
+local remotes = game:GetService("ReplicatedStorage"):FindFirstChild("MainEvent", true)
+    or (game:GetService("ReplicatedStorage"):FindFirstChild("Remotes") and game:GetService("ReplicatedStorage").Remotes:FindFirstChild("MainEvent"))
+
+if remotes then
+    local oldFire
+    oldFire = hookfunction(remotes.FireServer, newcclosure(function(self, ...)
         local a = { ... }
-        if cfg.silent and method == "FireServer" and self.Name == "MainEvent" and a[1] == "UpdateMousePos" then
+        if cfg.silent and a[1] == "UpdateMousePos" then
             local t = getTarget()
-            if t then a[2] = t.Position; return old(self, unpack(a)) end
+            if t then a[2] = t.Position; return oldFire(self, unpack(a)) end
         end
-        if cfg.wallbang and self == workspace and method == "Raycast" and typeof(a[2]) == "Vector3" and a[2].Magnitude > 0 then
-            local rp = RaycastParams.new()
-            rp.FilterType = Enum.RaycastFilterType.Include
-            rp.FilterDescendantsInstances = enemyChars()
-            return old(self, a[1], a[2].Unit * cfg.range, rp)
-        end
+        return oldFire(self, ...)
+    end))
+end
+
+local oldRay
+oldRay = hookfunction(workspace.Raycast, newcclosure(function(self, origin, dir, params)
+    if cfg.wallbang and typeof(dir) == "Vector3" and dir.Magnitude > 0 then
+        local rp = RaycastParams.new()
+        rp.FilterType = Enum.RaycastFilterType.Include
+        rp.FilterDescendantsInstances = enemyChars()
+        return oldRay(self, origin, dir.Unit * cfg.range, rp)
     end
-    return old(self, ...)
+    return oldRay(self, origin, dir, params)
 end))
 
 RS.Stepped:Connect(function()
@@ -148,7 +155,6 @@ for i, d in ipairs({ -25, 25 }) do
     b.Activated:Connect(function() cfg.fov = math.clamp(cfg.fov + d, 25, 800); paintFov() end)
 end
 
--- PC keybinds (optional)
 UIS.InputBegan:Connect(function(i, gp)
     if gp then return end
     if i.KeyCode == Enum.KeyCode.RightShift then main.Visible = not main.Visible
